@@ -1,0 +1,86 @@
+<config>
+
+<option name="saveRules_new" value="C:\Users\admin\Documents\TemporalDataGeneration\data\pattern_3\new_rules_3.xml" /> 
+<option name="threads" value="-1" /> 
+<option name="sub_threads" value="4" /> 
+<option name="debugLevel" value="1" />  
+<option name="stop_at_every_loop" value="0" />  
+
+
+
+<data head="" limit="-1" path="C:\Users\admin\Documents\TemporalDataGeneration\data\pattern_3\pattern_3.evt" /> 
+ 
+
+
+
+
+<outputEvent>
+	<predicate name="a" />
+</outputEvent>
+
+
+<inputEvent>
+	<predicate name="[b-z]" />
+</inputEvent>
+
+
+
+
+
+
+
+
+
+<option name="numCaseHead" value="40" />  
+<option name="maxPastHead" value="-20" />  
+<option name="maxFutureHead" value="-0.01" />  
+
+
+<option name="numCaseCond" value="40" />  
+<option name="maxPastCond" value="-20" />  
+<option name="maxFutureCond" value="0.01" />  
+
+
+<option name="histogram" value="Unif" /> 
+<option name="histoLogFactor" value="70" /> 
+<option name="negation" value="0" /> 
+<option name="allowTrees" value="1" /> 
+<option name="maxConditions" value="5" /> 
+
+
+<option name="minConfidence" value="0.05" /> 
+<option name="minCoverage" value="0.05" /> 
+<option name="minNumberOfUse" value="20" /> 
+
+
+<option name="maxCreatedRules" value="-1" /> 
+<option name="minimumInformationGain" value="0.002" /> 
+
+<option name="intermediatesmoothing" value="0" /> 
+<option name="finalsmoothing" value="0" /> 
+<option name="division" value="1" /> 
+<option name="division_method" value="matrix_clustering" /> 
+<option name="allowNonConnextCondition" value="0" /> 
+
+<option name="allow_classifier_id3" value="0" /> 
+<option name="classifier_id3_maxdeph" value="4" />
+<option name="classifier_id3_minuse" value="8" />
+
+<option name="allow_classifier_randomforest" value="0" /> 
+<option name="allow_state" value="0" />
+<option name="allow_time" value="1" />
+<option name="allow_scalar" value="0" />
+
+
+<option name="maxLoop" value="-1" /> 
+<option name="maxTime" value="-1" /> 
+<option name="maxTimeAfterInit" value="40" /> 
+
+
+
+<option name="maxWaitingList" value="100000" /> 
+
+<option name="maxEvaluations" value="-1" /> 
+<option name="maxTests" value="-1" /> 
+
+</config>
