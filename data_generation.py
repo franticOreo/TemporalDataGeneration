@@ -9,6 +9,7 @@ import collections
 import os
 import subprocess
 import bs4
+import argparse
 
 # deprecation warnings
 import warnings
@@ -436,27 +437,94 @@ def run_titarl(titarl_path, pattern_path, event_id):
             '--output', output_path] 
     print(subprocess.run(cmd, shell=True))
 
+def add_pattern_html(pattern_path, event_id, pattern, head_prob,
+                    n_patterns, n_subsets, n_noisy_insts):
+    # read html
+    html_path = pattern_path + rf'\new_rules_{event_id}.html'
+    img_path = pattern_path + rf'\pattern_{event_id}.png'
+
+    pattern_info_html = f"""<br><br><b>Python Pattern Object</b>: 
+                    <br>  {str(pattern)} <br> <b>Head Probability:</b> <br>
+                    {head_prob} <br><b> n_patterns: </b><br> {str(n_patterns)}
+                    <br><b> n_subsets: </b><br> {str(n_subsets)} 
+                    <br><b> n_noisy_insts: </b><br> {str(n_noisy_insts)}"""
+
+    pattern_info_html = bs4.BeautifulSoup(pattern_info_html, 'html.parser')
+    
+    with open(html_path) as html:
+        html = html.read()
+        soup = bs4.BeautifulSoup(html)
+
+    pattern_img = soup.new_tag("img", src=img_path)
+    soup.body.insert(0, pattern_img)
+
+    print(soup.find("div", class_="rawcontent").append(pattern_info_html)) #
+
+    with open(html_path, 'w', encoding="utf-8") as out_html:
+        out_html.write(str(soup))
+
+    return html_path
+
+    # create img tags
+    # write to html
+
 def foo():
+    '''low_body=4, high_body=6, low_prob=60, high_prob=90, disjunction=False,
+                   negation=False, conjunction=False, prob=always, cycle=False'''
     n_patterns = 1000
     n_subsets = 5000
     n_noisy_insts = 0
     head_prob = 60
 
-    body_patt = body_pattern(low_body=1, high_body=2)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--low_body', type=int, required=False, default=4)
+    parser.add_argument('--high_body', type=int, required=False, default=6)
+    parser.add_argument('--low_prob', type=int, required=False, default=60)
+    parser.add_argument('--high_prob', type=int, required=False, default=90)
+    parser.add_argument('--disjunction', type=bool, required=False, default=False)
+    parser.add_argument('--negation', type=bool, required=False, default=False)
+    parser.add_argument('--conjunction', type=bool, required=False, default=False)
+    parser.add_argument('--cycle', type=bool, required=False, default=False)
+
+    parser.add_argument('--n_patterns', type=int, required=False, default=10000)
+    parser.add_argument('--n_subsets', type=int, required=False, default=0)
+    parser.add_argument('--n_noisy_insts', type=int, required=False, default=0)
+    parser.add_argument('--head_prob', type=int, required=False, default=60)
+
+    parser.add_argument('--show', type=bool, required=False, default=False)
+
+    args = parser.parse_args()
+
+
+    body_patt = body_pattern(low_body=args.low_body, high_body=args.high_body,
+                            low_prob=args.low_body, high_prob=args.high_body, 
+                            disjunction=args.disjunction, negation=args.negation,
+                            conjunction=args.conjunction, prob=always, 
+                           cycle=args.cycle)
+    
     patt = make_pattern(body_patt)
+    pprint(patt)  
 
     root_path = os.getcwd()
     titarl_path = root_path + '\TITARL.exe'
     event_id = make_event_dir()
     pattern_path = root_path + f'\data\pattern_{event_id}'
 
-    generate_pattern_outputs(patt, body_patt, head_prob, pattern_path, event_id, n_patterns,
-                            n_subsets, n_noisy_insts)
+    generate_pattern_outputs(patt, body_patt, args.head_prob, pattern_path, event_id, args.n_patterns,
+                            args.n_subsets, args.n_noisy_insts)
+    
     run_titarl(titarl_path, pattern_path, event_id)
+    html_path = add_pattern_html(pattern_path, event_id, patt, head_prob, args.n_patterns,
+                            args.n_subsets, args.n_noisy_insts)
+
+    if args.show:
+        cmd = ['start', 'chrome', html_path] 
+        print(subprocess.run(cmd, shell=True))
+
+
 
 foo()
 
-    # run TITARL.exe
 
 
 

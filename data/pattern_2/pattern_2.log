@@ -1,2 +1,2 @@
-[Edge(start_s='r', end_s='f', start_t=0.10630900542846555, end_t=16.297415511763845, disjunction=False, negation=False, conjunction=False, cycle=False, prob=100)]
-('a', 0.7377997804952794, 6.5217858003161915)
+[Edge(start_s='r', end_s='e', start_t=0.029055418300796276, end_t=1.6254919933963876, disjunction=False, negation=False, conjunction=False, cycle=False, prob=100)]
+('a', 0.44368299011562196, 1.5862026507202973)
