@@ -57,7 +57,7 @@ The file that contains the configuration parameters for the learning.
 <option name="histoLogFactor" value="70" /> <!-- Parameters for histogram Log, InvLog and CenterLog -->
 <option name="negation" value="0" /> <!-- Allow negative conditions i.e. "there is not event of type A between t_1 and t_2" -->
 <option name="allowTrees" value="1" /> <!-- Allow trees of conditions (by opposition to paths of conditions) -->
-<option name="maxConditions" value="5" /> <!-- Maximum number of condition for a rule -->
+<option name="maxConditions" value="8" /> <!-- (was 5) Maximum number of condition for a rule -->
 
 <!-- rules restrictions -->
 <option name="minConfidence" value="0.05" /> <!-- Minimum confidence for a rule -->
@@ -65,7 +65,7 @@ The file that contains the configuration parameters for the learning.
 <option name="minNumberOfUse" value="20" /> <!-- Minimum number of use of a rule -->
 
 <!-- research parameters -->
-<option name="maxCreatedRules" value="-1" /> <!-- Maximum number of rules to create. If this number is reached, the algorithm stop. Since several rules can be created simultaniously, the final number of rules can be slightly higher than this parameter (-1: no limit) -->
+<option name="maxCreatedRules" value="5000" /> <!-- Maximum number of rules to create. If this number is reached, the algorithm stop. Since several rules can be created simultaniously, the final number of rules can be slightly higher than this parameter (-1: no limit) -->
 <option name="minimumInformationGain" value="0.002" /> <!-- Minimum information gain when building conditions -->
 
 <option name="intermediatesmoothing" value="0" /> <!-- Experimental: Smooth rules in the main loop i.e. Generate duplicates of rules with small modification. -->
