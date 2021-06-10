@@ -1,4 +1,3 @@
-import pandas as pd
 import numpy as np
 from pprint import pprint
 import random
@@ -16,17 +15,26 @@ import warnings
 import matplotlib.cbook
 warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 
+edge_fields = ('start_s', 'end_s', 'start_t', 'end_t', 'disjunction', 'negation', 'conjunction', 'cycle', 'prob')
+Edge = collections.namedtuple('Edge', edge_fields)
+Edge.__new__.__defaults__ = (False,) * len(Edge._fields) # set default fields
+
+ROOT_DIR = 'C:/Users/admin/Documents/TemporalDataGeneration/'
+if not os.path.exists(ROOT_DIR):
+    ROOT_DIR = 'E:/Work PhD/Python/TemporalDataGeneration/'
 
 body_constr = [0,20]
 head_constr = [0,10]
 max_root_time = 100000 - head_constr[1]
 
 # Constants
-HEAD_CONST = 'head'
+HEAD_CONST = 'a'
 ROOT_CONST = 'r'
-A = 'a'
 always = 100
 cycle_prob = 50
+
+use_titarl_increasing_head_prob = True # titarl needs this to learn longer chains of conditions
+
 
 class GraphVisualization: 
    
@@ -63,7 +71,7 @@ class GraphVisualization:
 
 def time_interval(body_constr): return tuple(np.random.uniform(body_constr)) 
 
-def unique_body_symbols(low=3, high=5, single=False):
+def unique_body_symbols(low=3, high=5, include_body_symbols=True, include_root=False, include_head=False):
     '''Creates a random unique list of symbols for the body 
     of pattern. Symbol A has been excluded from the list as it is reserved 
     for the head of the pattern.
@@ -73,14 +81,31 @@ def unique_body_symbols(low=3, high=5, single=False):
         Returns:
             random_symbols (list): random choice of symbols
     '''
-    symbols = ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'] # possible body symbols
+    symbols = list()
+    if include_body_symbols:
+        symbols += ['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
+    if include_root:
+        symbols += ['r']
+    if include_head:
+        symbols += ['a']
     n_bod_symbols = np.random.randint(low, high)
-    if single:  n_bod_symbols = 1 
     rand_symbols = random.sample(symbols, k=n_bod_symbols)
     
     return rand_symbols
 
-def make_edges(Edge, body_symbols, condition=None, connected_nodes=None):
+def generate_premade_body_pattern(pattern_number):
+    body_patt = []
+    if pattern_number == 1:
+        start_t = 19
+        end_t = 20
+        body_patt.append(Edge(ROOT_CONST, 'b', start_t=start_t, end_t=end_t, disjunction=False, prob=always))
+        body_patt.append(Edge('b', 'c', start_t=start_t, end_t=end_t, disjunction=False, prob=always))
+        body_patt.append(Edge('c', 'd', start_t=start_t, end_t=end_t, disjunction=False, prob=always))
+        body_patt.append(Edge('d', 'e', start_t=start_t, end_t=end_t, disjunction=False, prob=always))
+
+    return body_patt
+
+def make_edges(body_symbols, condition=None, connected_nodes=None):
     '''Args:
             Edge (named_tuple): Edge object with default fields.
             body_symbols (list): unique body symbols.
@@ -137,42 +162,37 @@ def body_pattern(low_body=4, high_body=6, low_prob=60, high_prob=90, disjunction
     connected_nodes = [ROOT_CONST] # keep track of connected nodes for end_symbol possibilities
     
     pattern = [] # pattern list of edges : graph like object
-    fields = ('start_s', 'end_s', 'start_t', 'end_t', 'disjunction', 'negation', 'conjunction', 'cycle', 'prob')
-    Edge = collections.namedtuple('Edge', fields)
-    Edge.__new__.__defaults__ = (False,) * len(Edge._fields) # set default fields
 
-        
     if disjunction:
         
         max_disjs = len(body_symbols) // 2
         n_disjs = np.random.randint(low=1, high=max_disjs)
         for disj in range(n_disjs): 
-            edges, nodes = make_edges(Edge, body_symbols, condition='disjunction')
+            edges, nodes = make_edges(body_symbols, condition='disjunction')
             pattern.append(Edge(nodes[0], nodes[1], # disjunction edge
                 start_t=None, end_t=None, disjunction=True, prob=always))
             pattern.extend(edges)
             connected_nodes.extend(nodes)
 
     if cycle:
-        edges, nodes = make_edges(Edge, body_symbols, condition='cycle') # create cycle edge
+        edges, nodes = make_edges(body_symbols, condition='cycle') # create cycle edge
         pattern.append(Edge(nodes[0], np.random.choice(connected_nodes),
                            disjunction=True)) # create disjunction edge to stop infinite loop
         pattern.extend(edges)
         connected_nodes.extend(nodes) 
         
     elif negation:
-        edges, nodes = make_edges(Edge, body_symbols, condition='negation',
+        edges, nodes = make_edges(body_symbols, condition='negation',
                                  connected_nodes=connected_nodes)
         pattern.extend(edges)
         connected_nodes.extend(nodes) 
         
     elif conjunction:
-        edges, nodes = make_edges(Edge, body_symbols, condition='conjunction')
+        edges, nodes = make_edges(body_symbols, condition='conjunction')
         pattern.extend(edges)
         connected_nodes.extend(nodes)
     # remaining nodes are added to either root or connected body node
-    edges, nodes = make_edges(Edge, body_symbols, condition=None,
-                             connected_nodes=connected_nodes)
+    edges, nodes = make_edges(body_symbols, condition=None, connected_nodes=connected_nodes)
     pattern.extend(edges)
     connected_nodes.extend(nodes)
 
@@ -247,9 +267,18 @@ def generate_neighbouring_tps(node,tp,patt):
 def generate_tps(node,tp,patt):
     all_tps = []
 
-    if node == None:
+    if node is None:
         # this is the start of recursive generation, start from root
-        node = ROOT_CONST
+        # first see if there is a root node in the pattern (subset may not have a root)
+        assert len(patt)>0
+        for edge in patt:
+            if edge.start_s == ROOT_CONST:
+                node = ROOT_CONST
+                break
+        if node is None:
+            # couldnt find a root instance so use first symbol in pattern instead
+            node = patt[0].start_s
+
         tp = np.random.uniform(low=0, high=max_root_time)
         all_tps.append((tp, node))
     
@@ -262,7 +291,7 @@ def generate_tps(node,tp,patt):
     
     return all_tps
 
-def generate_event_pred(patt, head_prob, make_pred=False):
+def generate_event_pred(patt,head_prob,make_pred=False):
     '''
     For event instance, only add A if head prob is exceeded
     Input: 
@@ -271,29 +300,26 @@ def generate_event_pred(patt, head_prob, make_pred=False):
     body_patt = patt[0]
     head_patt = patt[1]
     
-    if make_pred == False:
-        body_patt = rand_subset(patt[0])
-    
+    if not make_pred:
+        body_patt = rand_subset(body_patt)
+
     body_inst = generate_tps(None, None, body_patt)
 
     pred = []
-    
-    for t in body_inst: # get root tp
-        if t[1] == ROOT_CONST: 
-            root_tp = t[0]
-        
-    head_tp = root_tp + time_point(head_patt[1], head_patt[2])    
-    consequent = (head_tp, A)
-    pred.append(consequent)
-        
-    if head_prob > np.random.randint(low=0, high=100):
-        body_inst.append(consequent) 
 
     if make_pred:
-        return body_inst, pred
+        for t in body_inst: # get root tp
+            if t[1] == ROOT_CONST:
+                root_tp = t[0]
 
-    else:
-        return body_inst
+        head_tp = root_tp + time_point(head_patt[1], head_patt[2])
+        consequent = (head_tp,HEAD_CONST)
+        pred.append(consequent)
+
+        if head_prob > np.random.randint(low=0, high=100):
+            body_inst.append(consequent)
+
+    return body_inst, pred
 
 def rand_subset(body_patt): # random subset of the instance
     '''
@@ -301,10 +327,22 @@ def rand_subset(body_patt): # random subset of the instance
         ts (list): list of lists of time point and symbol of
         random subset of the pattern definition'''
     if len(body_patt) == 1: return []
-    
-    subset_idxs = sorted([np.random.randint(low=0, high=len(body_patt)) for _ in range(2)])
-    sub_pattern = body_patt[subset_idxs[0]: subset_idxs[1]]
-    
+
+    if use_titarl_increasing_head_prob:
+        # make more smaller sized subsets than larger sized ones
+        # titarl needs this to learn longer condition chains but it also makes sense for random noise
+        choice_p = np.arange(len(body_patt),dtype=float)+1
+        choice_p = np.power(choice_p,-2) # skew it more than linearly
+        choice_p /= choice_p.sum() # make the sum of probabilities to 1 because np.choice requires this
+    else:
+        choice_p = None
+
+    subset_size = np.random.choice(range(len(body_patt)),1,p=choice_p)+1 # max size is one less than full pattern size
+    subset_idxs = sorted(np.random.choice(len(body_patt),subset_size,replace=False))
+    sub_pattern = [body_patt[idx] for idx in subset_idxs]
+
+    assert len(sub_pattern)>0
+
     return sub_pattern
     
 def noisy_instance(time_high=100000):
@@ -313,8 +351,8 @@ def noisy_instance(time_high=100000):
     
             Returns:
                 ts (list): list of lists containing random time point and symbol'''
-    
-    sym = unique_body_symbols(single=True).pop()
+
+    sym = unique_body_symbols(low=1,high=2,include_body_symbols=False,include_root=True,include_head=True).pop()
     tp = time_point(start_t=0, end_t=time_high)
     inst = [[tp, sym]]
     return inst
@@ -328,32 +366,40 @@ def generate_events_preds(pattern, head_prob, n_patterns, n_subsets, n_noisy_ins
             preds (list): ground truth values
     '''    
     events, preds= [], []
+    pattern_counts = dict()
     
     for _ in range(n_patterns):
-        event, pred =  generate_event_pred(pattern, head_prob, make_pred=True)
+        event, pred =  generate_event_pred(pattern,head_prob,make_pred=False)
         events.extend(event)
         preds.extend(pred)
-        
-    for _ in range(n_subsets):
-        event = generate_event_pred(pattern, head_prob, make_pred=False) # dont think head prob needed
-        if event == None:
-            continue
-        elif event != []:
+        add_pattern_count(event,pattern_counts)
+
+    # only generate subsets if there is more than one condition in the pattern body
+    if len(pattern[0])>1:
+        for _ in range(n_subsets):
+            event, pred = generate_event_pred(pattern,head_prob,make_pred=True) # dont think head prob needed
+            assert not event is None and len(event)>0
             events.extend(event)
-        else:
-            continue
-        
+            add_pattern_count(event,pattern_counts)
+
     for _ in range(n_noisy_insts):
         event = noisy_instance()
         events.extend(event)
-        
+        add_pattern_count(event,pattern_counts)
 
     events.sort(key=lambda x: x[0])
     preds.sort(key=lambda x: x[0])# sort by timestamp
     
-    return events, preds
+    return events, preds, pattern_counts
 
-ROOT_DIR = 'C:/Users/admin/Documents/TemporalDataGeneration/'
+def add_pattern_count(pattern_event, pattern_counts):
+    symbols_included_set = {tp[1] for tp in pattern_event}
+    symbols_included_list = sorted(list(symbols_included_set))
+    symbols_string = ''.join(symbols_included_list)
+    if symbols_string in pattern_counts.keys():
+        pattern_counts[symbols_string] += 1
+    else:
+        pattern_counts[symbols_string] = 1
 
 def make_event_dir():
     os.chdir(f"{ROOT_DIR}/data/")
@@ -408,25 +454,27 @@ def make_patt_files(pattern, events1, preds1, events2, preds2, pattern_path, eve
 
 def make_pattern(body_patt):
     start_t, end_t = time_interval(head_constr)
-    consequent = tuple([A, start_t, end_t])
+    consequent = tuple([HEAD_CONST,start_t,end_t])
 
     return (body_patt, consequent)
 
-def generate_pattern_outputs(patt, body_patt, head_prob, pattern_path, event_id, n_patterns,
+def generate_pattern_outputs(patt, head_prob, pattern_path, event_id, n_patterns,
                             n_subsets, n_noisy_insts):
     
     # save .png graph
+    body_patt = patt[0]
     plot_pattern(body_patt, show=False, save=True, path=f'{pattern_path}\pattern_{event_id}.png')
 
-    events1, preds1 = generate_events_preds(patt, head_prob, n_patterns, 
+    events1, preds1, pattern_counts1 = generate_events_preds(patt, head_prob, n_patterns,
                                             n_subsets, n_noisy_insts)
     
-    events2, preds2 = generate_events_preds(patt, head_prob, n_patterns, 
+    events2, preds2, _ = generate_events_preds(patt, head_prob, n_patterns,
                                             n_subsets, n_noisy_insts)
 
     make_patt_files(patt, events1, preds1, events2, preds2, 
                     pattern_path=pattern_path, event_id=event_id)
 
+    return pattern_counts1 # return noise counts for train set
 
 def run_titarl(titarl_path, pattern_path, event_id):
     learn_path = f'{pattern_path}\pattern_{event_id}_learning_config.xml'
@@ -437,23 +485,38 @@ def run_titarl(titarl_path, pattern_path, event_id):
             '--output', output_path] 
     print(subprocess.run(cmd, shell=True))
 
-def add_pattern_html(pattern_path, event_id, pattern, head_prob,
-                    n_patterns, n_subsets, n_noisy_insts):
+def add_pattern_html(pattern_path,event_id,pattern,head_prob,
+                     n_patterns,n_subsets,n_noisy_insts,pattern_counts):
     # read html
     html_path = pattern_path + rf'\new_rules_{event_id}.html'
     img_path = pattern_path + rf'\pattern_{event_id}.png'
 
-    pattern_info_html = f"""<br><br><b>Python Pattern Object</b>: 
-                    <br>  {str(pattern)} <br> <b>Head Probability:</b> <br>
-                    {head_prob} <br><b> n_patterns: </b><br> {str(n_patterns)}
-                    <br><b> n_subsets: </b><br> {str(n_subsets)} 
-                    <br><b> n_noisy_insts: </b><br> {str(n_noisy_insts)}"""
+    noise_a = pattern_counts.get('a',0)
+    pattern_a = n_patterns * head_prob / 100
+    head_support = pattern_a / (noise_a + pattern_a) # what proportion of the a's should be predictable
+
+    head_prob_display = round(head_prob/100,2)
+    head_support_display = round(head_support,2)
+    pattern_count_list = [[symbols,count] for symbols,count in pattern_counts.items()]
+    pattern_count_list.sort(key=lambda x: -len(x[0]))
+    pattern_counts_display = "<br>".join([symbols + ': ' + str(count) for symbols,count in pattern_count_list])
+
+    pattern_info_html = f"""<br><br><b>Pattern body</b>:<br> 
+                    {"<br>".join(map(str,pattern[0]))}<br>
+                    <b>Pattern head:</b><br> r -> {pattern[1]} <br>
+                    <b>Head probabilities:</b><br>
+                    Precision (confidence) = {head_prob_display}<br>
+                    Recall (support) = {head_support_display}<br>
+                    <b> n_patterns: </b><br> {str(n_patterns)}<br>
+                    <b> n_subsets: </b><br> {str(n_subsets)} <br>
+                    <b> n_noisy_insts: </b><br> {str(n_noisy_insts)}<br>
+                    <b> pattern counts: </b><br> {pattern_counts_display}"""
 
     pattern_info_html = bs4.BeautifulSoup(pattern_info_html, 'html.parser')
     
     with open(html_path) as html:
         html = html.read()
-        soup = bs4.BeautifulSoup(html)
+        soup = bs4.BeautifulSoup(html,features="html.parser")
 
     pattern_img = soup.new_tag("img", src=img_path)
     soup.body.insert(0, pattern_img)
@@ -468,13 +531,9 @@ def add_pattern_html(pattern_path, event_id, pattern, head_prob,
     # create img tags
     # write to html
 
-def foo():
+def main():
     '''low_body=4, high_body=6, low_prob=60, high_prob=90, disjunction=False,
                    negation=False, conjunction=False, prob=always, cycle=False'''
-    n_patterns = 1000
-    n_subsets = 5000
-    n_noisy_insts = 0
-    head_prob = 60
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--low_body', type=int, required=False, default=4)
@@ -495,13 +554,24 @@ def foo():
 
     args = parser.parse_args()
 
+    # override values for testing
+    args.low_body = 5
+    args.high_body = 6
+    args.n_patterns = 1000
+    args.n_subsets = args.n_patterns
+    args.n_noisy_insts = args.n_patterns*2
+    args.head_prob = 90
 
-    body_patt = body_pattern(low_body=args.low_body, high_body=args.high_body,
-                            low_prob=args.low_body, high_prob=args.high_body, 
-                            disjunction=args.disjunction, negation=args.negation,
-                            conjunction=args.conjunction, prob=always, 
-                           cycle=args.cycle)
-    
+    premade_body_pattern_number = -1 # use -1 to generate random body pattern, use 1 for premade pattern #1
+    if premade_body_pattern_number == -1:
+        body_patt = body_pattern(low_body=args.low_body, high_body=args.high_body,
+                                low_prob=args.low_body, high_prob=args.high_body,
+                                disjunction=args.disjunction, negation=args.negation,
+                                conjunction=args.conjunction, prob=always,
+                               cycle=args.cycle)
+    else:
+        body_patt = generate_premade_body_pattern(premade_body_pattern_number)
+
     patt = make_pattern(body_patt)
     pprint(patt)  
 
@@ -509,21 +579,22 @@ def foo():
     titarl_path = root_path + '\TITARL.exe'
     event_id = make_event_dir()
     pattern_path = root_path + f'\data\pattern_{event_id}'
+    os.makedirs(pattern_path,exist_ok=True)
 
-    generate_pattern_outputs(patt, body_patt, args.head_prob, pattern_path, event_id, args.n_patterns,
+    train_pattern_counts = generate_pattern_outputs(patt, args.head_prob, pattern_path, event_id, args.n_patterns,
                             args.n_subsets, args.n_noisy_insts)
-    
+
     run_titarl(titarl_path, pattern_path, event_id)
-    html_path = add_pattern_html(pattern_path, event_id, patt, head_prob, args.n_patterns,
-                            args.n_subsets, args.n_noisy_insts)
+    html_path = add_pattern_html(pattern_path, event_id, patt, args.head_prob, args.n_patterns,
+                            args.n_subsets, args.n_noisy_insts, train_pattern_counts)
 
     if args.show:
         cmd = ['start', 'chrome', html_path] 
         print(subprocess.run(cmd, shell=True))
 
 
-
-foo()
+if __name__ == '__main__':   # this line is important for multiprocessing
+    main()
 
 
 
